@@ -107,21 +107,9 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 
-const getRange = (start: string, end: string): string[] => {
-  const quarters: string[] = [];
-
-  const [startYear, startQuarter] = start.split(" Q").map(val => Number(val));
-  const [endYear, endQuarter] = end.split(" Q").map(val => Number(val));
-
-  for (let year = startYear; year <= endYear; year++) {
-    const quarterStart = (year === startYear) ? startQuarter : 1;
-    for (let quarter = quarterStart; quarter <= 4; quarter++) {
-      quarters.push(`${year} Q${quarter}`);
-    }
-  }
-
-  return quarters;
-}
+import initialData from "../data/data.json"
+import dataN from "../data/data copy.json"
+import { getRange } from "@/lib/utils"
 
 export const schema = z.object({
   id: z.number(),
@@ -355,15 +343,11 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
   )
 }
 
-export function DataTable({
-  data: initialData,
-}: {
-  data: z.infer<typeof schema>[]
-}) {
+export function DataTable() {
+  const [fund, setFund] = React.useState(0)
   const [data, setData] = React.useState(() => initialData)
   const [rowSelection, setRowSelection] = React.useState({})
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   )
@@ -420,6 +404,53 @@ export function DataTable({
     }
   }
 
+  const selectedFund = dataN[fund]
+
+  const allQuarters: String[] = getRange(selectedFund.startPeriod, selectedFund.endPeriod)
+
+  type Quarter = typeof allQuarters[number]
+
+  const getValues = (quarter: Quarter) => {
+    const values = Object.entries(selectedFund).find(([key, val]) => key === quarter)?.[1]
+
+    if (!values || typeof values != "object") {
+      return {}
+    }
+
+    return values
+  }
+
+  const getAllValueKeys = (): String[] => {
+    const valueKeys: String[] = []
+
+    for (const quarter of allQuarters) {
+      const quarterKeys: String[] = Object.keys(getValues(quarter)).filter((qKey) => !valueKeys.includes(qKey))
+
+      valueKeys.push(...quarterKeys)
+    }
+
+    return valueKeys
+  }
+
+  const valueKeys: String[] = getAllValueKeys()
+
+  type ValueKey = typeof valueKeys[number]
+
+  const getRowValues = (vKey: ValueKey): String[] => {
+    const rowValues: String[] = []
+
+    for (let quarter of allQuarters) {
+      const values = getValues(quarter)
+
+      const cellValue = Object.entries(values).find(([key, val]) => key === vKey)?.[1] ?? "-"
+
+      rowValues.push(cellValue as String)
+    }
+
+    return rowValues
+
+  }
+
   return (
     <Tabs
       defaultValue="outline"
@@ -444,9 +475,9 @@ export function DataTable({
           </SelectContent>
         </Select>
         <TabsList className="@4xl/main:flex hidden">
-          <TabsTrigger value="outline">Outline</TabsTrigger>
+          <TabsTrigger value="outline">Quarter over Quarter</TabsTrigger>
           <TabsTrigger value="past-performance" className="gap-1">
-            Past Performance{" "}
+            YTD{" "}
             <Badge
               variant="secondary"
               className="flex h-5 w-5 items-center justify-center rounded-full bg-muted-foreground/30"
@@ -455,7 +486,7 @@ export function DataTable({
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="key-personnel" className="gap-1">
-            Key Personnel{" "}
+            LTD - Quarterly{" "}
             <Badge
               variant="secondary"
               className="flex h-5 w-5 items-center justify-center rounded-full bg-muted-foreground/30"
@@ -463,7 +494,7 @@ export function DataTable({
               2
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="focus-documents">Focus Documents</TabsTrigger>
+          <TabsTrigger value="focus-documents">LTD - Annual</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
           <DropdownMenu>
@@ -517,7 +548,7 @@ export function DataTable({
             sensors={sensors}
             id={sortableId}
           >
-            <Table>
+            {/* <Table>
               <TableHeader className="sticky top-0 z-10 bg-muted">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
@@ -557,10 +588,45 @@ export function DataTable({
                   </TableRow>
                 )}
               </TableBody>
+            </Table> */}
+            <Table className="2xl:text-lg">
+              <TableHeader className="sticky top-0 z-10 bg-muted">
+                <TableRow>
+                  <TableHead className="text-center">Value</TableHead>
+                  {allQuarters.map((quarter) => (
+                    <TableHead key={quarter.toString()} className="text-center">{quarter}</TableHead>
+                  ))}
+                  {/* <TableHead className="text-center">2014 Q2</TableHead>
+                  <TableHead className="text-center">2014 Q3</TableHead>
+                  <TableHead className="text-center">2014 Q4</TableHead> */}
+                </TableRow>
+              </TableHeader>
+              <TableBody className="**:data-[slot=table-cell]:first:w-8">
+                {valueKeys.map((key) => (
+                  <TableRow key={key.toString()}>
+                    <TableCell
+                      // colSpan={columns.length}
+                      className="text-left pl-10"
+                    >
+                      {key}
+                    </TableCell>
+                    {getRowValues(key).map((quarterValue, i) => (
+                      <TableCell
+                        key={quarterValue.toString() + i}
+                        // colSpan={columns.length}
+                        // className="text-center font-medium"
+                        className="text-center"
+                      >
+                        {(quarterValue === "-") ? quarterValue : "$" + quarterValue}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
             </Table>
           </DndContext>
         </div>
-        <div className="flex items-center justify-between px-4">
+        {/* <div className="flex items-center justify-between px-4">
           <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
             {table.getFilteredSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected.
           </div>
@@ -635,24 +701,24 @@ export function DataTable({
               </Button>
             </div>
           </div>
-        </div>
+        </div> */}
       </TabsContent>
       <TabsContent
         value="past-performance"
         className="flex flex-col px-4 lg:px-6"
       >
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed">Past Performance</div>
+        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed">YTD</div>
       </TabsContent>
       <TabsContent
         value="key-personnel" className="flex flex-col px-4 lg:px-6"
       >
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed">Key Personnel</div>
+        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed">LTD - Quarterly</div>
       </TabsContent>
       <TabsContent
         value="focus-documents"
         className="flex flex-col px-4 lg:px-6"
       >
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed">Focus Documents</div>
+        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed">LTD - Annual</div>
       </TabsContent>
     </Tabs>
   )
